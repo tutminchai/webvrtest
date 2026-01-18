@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VR360 學生作品展示平台</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    
+    <style>
+        /* 簡單的播放按鈕樣式，引導使用者點擊 */
+        #play-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            cursor: pointer;
+        }
+        #play-text {
+            color: white;
+            font-size: 24px;
+            font-family: sans-serif;
+            border: 2px solid white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="play-overlay" onclick="startVideo()">
+        <div id="play-text">點擊螢幕進入 VR 體驗</div>
+    </div>
+
+    <a-scene vr-mode-ui="enabled: true">
+        
+        <a-assets>
+            <video id="vr-video" 
+                   src="video.mp4" 
+                   loop="true" 
+                   preload="auto" 
+                   crossorigin="anonymous" 
+                   playsinline 
+                   webkit-playsinline>
+            </video>
+        </a-assets>
+
+        <a-videosphere src="#vr-video" rotation="0 -90 0"></a-videosphere>
+
+        <a-camera user-height="1.6">
+            </a-camera>
+
+    </a-scene>
+
+    <script>
+        // JavaScript 控制腳本
+        function startVideo() {
+            var video = document.querySelector('#vr-video');
+            var overlay = document.querySelector('#play-overlay');
+            
+            // 播放影片
+            video.play();
+            
+            // 隱藏覆蓋層
+            overlay.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
