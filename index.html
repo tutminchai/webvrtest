@@ -1,50 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>VR 測試模式</title>
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <style>
-    /* 讓按鈕清楚顯示 */
-    #play-button {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: 150px; height: 60px; background: white; color: black;
-      font-size: 20px; z-index: 999; border-radius: 10px; border: none;
-      font-weight: bold; cursor: pointer;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影片檔案診斷工具</title>
+    <style>
+        body { background: #222; color: white; text-align: center; padding: 20px; font-family: sans-serif; }
+        video { width: 100%; max-width: 600px; border: 2px solid white; margin-top: 20px; }
+        .status { margin-top: 10px; color: yellow; }
+    </style>
 </head>
 <body>
 
-  <button id="play-button" onclick="startDemo()">點我開始</button>
+    <h2>🛠 VR 影片診斷模式</h2>
+    <p>如果下方影片無法播放，代表檔案本身有問題。</p>
 
-  <a-scene vr-mode-ui="enabled: true">
-    <a-assets>
-      <video id="test-video" 
-             loop="true" 
-             crossorigin="anonymous" 
-             playsinline 
-             webkit-playsinline>
-             <source src="https://aframe.io/aframe/examples/boilerplate/panorama/city.mp4" type="video/mp4">
-      </video>
-    </a-assets>
+    <video controls playsinline autoplay muted>
+        <source src="video.mp4" type="video/mp4">
+        您的瀏覽器不支援影片播放，或是路徑錯誤。
+    </video>
 
-    <a-videosphere src="#test-video" rotation="0 -90 0"></a-videosphere>
-    <a-camera></a-camera>
-  </a-scene>
+    <div class="status">
+        診斷清單：<br>
+        1. 檔名是否為 video.mp4 (全小寫)?<br>
+        2. 檔案是否小於 100MB?<br>
+        3. 是否為 H.264 編碼?
+    </div>
 
-  <script>
-    function startDemo() {
-      var video = document.querySelector('#test-video');
-      var btn = document.querySelector('#play-button');
-      
-      // 點擊後播放影片
-      video.play();
-      
-      // 隱藏按鈕
-      btn.style.display = 'none';
-    }
-  </script>
 </body>
 </html>
