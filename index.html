@@ -3,53 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>VR360 最終修復版</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>VR360 體驗 (穩定版)</title>
     
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     
     <style>
-        /* 強制黑底 */
         body { background-color: #000; margin: 0; overflow: hidden; font-family: sans-serif; }
 
-        /* 隱藏影片元素和畫布 (它們在後台運作) */
-        #vr-video, #video-canvas { display: none; }
+        /* 【關鍵 2】絕對不要用 display: none 隱藏影片！ 
+           iPhone 會以為不用播放。改用透明度隱藏。 */
+        #vr-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 1px; 
+            height: 1px;
+            opacity: 0.01; /* 讓它保持微弱可見，騙過瀏覽器 */
+            z-index: -1;
+            pointer-events: none;
+        }
 
         /* UI 介面 */
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 9999;
+            background: rgba(0,0,0,0.85); z-index: 9999;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             color: white; text-align: center;
         }
-        .box { border: 1px solid #555; padding: 20px; border-radius: 10px; background: rgba(255,255,255,0.1); }
-        #start-btn { 
-            margin-top: 20px; padding: 15px 40px; font-size: 18px; 
-            background: #EF2D5E; color: white; border: none; border-radius: 30px; cursor: pointer;
+        .box { 
+            background: rgba(255, 255, 255, 0.1); padding: 25px; border-radius: 15px; 
+            border: 1px solid rgba(255,255,255,0.2); max-width: 80%;
         }
+        #start-btn {
+            margin-top: 25px; padding: 15px 50px; font-size: 20px; font-weight: bold;
+            background: #EF2D5E; color: white; border: none; border-radius: 50px;
+        }
+        
         #enter-vr-btn {
             position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
             z-index: 9998; display: none;
             padding: 12px 25px; background: rgba(0,0,0,0.8); border: 2px solid #fff;
-            color: #fff; border-radius: 30px; font-weight: bold; cursor: pointer;
+            color: white; border-radius: 30px; font-weight: bold;
         }
     </style>
-
-    <script>
-        // --- 核心邏輯：畫布更新組件 ---
-        AFRAME.registerComponent('canvas-updater', {
-            dependencies: ['geometry', 'material'],
-
-            tick: function () {
-                var el = this.el;
-                var material = el.getObject3D('mesh').material;
-                
-                // 告訴 A-Frame 材質需要更新（因為畫布內容一直在變）
-                if (material.map) {
-                    material.map.needsUpdate = true;
-                }
-            }
-        });
-    </script>
 </head>
 <body>
 
@@ -63,107 +60,68 @@
            muted>
     </video>
 
-    <canvas id="video-canvas"></canvas>
-
     <div id="overlay">
         <div class="box">
-            <h3>VR 體驗指南</h3>
-            <p>1. 點擊「開始」</p>
-            <p>2. 點擊下方「進入 VR」</p>
-            <p>3. 允許權限並放入眼鏡</p>
+            <h3>VR 啟動模式</h3>
+            <p>請點擊下方按鈕開始載入</p>
         </div>
-        <button id="start-btn" onclick="initVideoCanvas()">開始載入</button>
+        <button id="start-btn" onclick="startApp()">載入影片</button>
     </div>
 
-    <div id="enter-vr-btn" onclick="requestPermission()">進入 VR 模式</div>
+    <div id="enter-vr-btn" onclick="enterVR()">進入 VR 模式</div>
 
-    <a-scene vr-mode-ui="enabled: false">
+    <a-scene vr-mode-ui="enabled: false"
+             loading-screen="dotsColor: white; backgroundColor: black">
         
-        <a-sphere id="vr-sphere"
-                  radius="500"
-                  src="#video-canvas"
-                  scale="-1 1 1" 
-                  shader="flat"
-                  canvas-updater>
-        </a-sphere>
+        <a-sky src="#vr-video" rotation="0 -90 0"></a-sky>
 
         <a-camera position="0 0 0" look-controls="enabled: true"></a-camera>
-
     </a-scene>
 
     <script>
         var video = document.getElementById('vr-video');
-        var canvas = document.getElementById('video-canvas');
-        var ctx = canvas.getContext('2d');
         var scene = document.querySelector('a-scene');
 
-        // 啟動變數
-        var isVideoPlaying = false;
-
-        function initVideoCanvas() {
-            // 1. 先播放影片
+        function startApp() {
+            // 播放影片
             video.play().then(() => {
-                console.log("Video playing");
+                console.log("Video Started");
                 document.getElementById('overlay').style.display = 'none';
                 document.getElementById('enter-vr-btn').style.display = 'block';
-                
-                // 2. 設定畫布大小等於影片大小
-                // 如果讀不到尺寸，先給個預設值，等 metadata 載入
-                if (video.videoWidth) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                } else {
-                    canvas.width = 1920;
-                    canvas.height = 960;
-                }
-                
-                isVideoPlaying = true;
-                drawLoop(); // 開始繪製迴圈
-
             }).catch(e => {
+                alert("播放失敗，請檢查檔案格式");
                 console.error(e);
-                alert("請點擊畫面觸發播放");
             });
         }
 
-        // 核心迴圈：不斷把影片畫到 Canvas 上
-        function drawLoop() {
-            if (isVideoPlaying) {
-                // 如果影片尺寸變了(載入完成)，更新畫布尺寸
-                if (canvas.width !== video.videoWidth && video.videoWidth > 0) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                }
-                
-                // 繪製影格
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                // 下一幀
-                requestAnimationFrame(drawLoop);
-            }
-        }
-
-        function requestPermission() {
-            // iOS 13+ 權限
+        function enterVR() {
+            // 針對 iOS 13+ 的權限請求 (A-Frame 1.2.0 需要手動處理這段)
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
-                    .then(state => {
-                        if (state === 'granted') {
-                            scene.enterVR();
+                    .then(response => {
+                        if (response === 'granted') {
+                            goVR();
                         } else {
-                            alert('需要權限');
+                            alert('請允許動作感測器權限');
                         }
                     })
                     .catch(console.error);
             } else {
-                scene.enterVR();
+                goVR();
             }
         }
-        
-        // 監聽 VR 模式，防止手機休眠導致影片暫停
-        scene.addEventListener('enter-vr', function () {
-            if(video.paused) video.play();
-        });
+
+        function goVR() {
+            scene.enterVR();
+            
+            // 【關鍵 4】進入 VR 後，再次強制確保影片在播放
+            // 有時候 iOS 切換全螢幕會自動暫停
+            setTimeout(() => {
+                if(video.paused) {
+                    video.play();
+                }
+            }, 1000);
+        }
     </script>
 </body>
 </html>
