@@ -5,97 +5,92 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>VR360 虛擬導覽</title>
     <style>
-        /* --- 1. 現代極簡風格 UI --- */
+        /* --- 1. 極簡透明風格 UI --- */
         body { margin: 0; background-color: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
         
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            /* 深邃且高級的動態背景 */
-            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            /* 背景改為更有質感的深邃漸層 */
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
             display: flex;
             flex-direction: column; justify-content: center; align-items: center;
             z-index: 999; color: white; text-align: center;
             transition: opacity 0.5s ease;
         }
 
-        .content-box {
-            max-width: 80%;
-            padding: 20px;
-        }
-
+        /* 移除方塊，改用直接排版 */
         h1 { 
-            font-size: 32px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-size: 36px; font-weight: 200; margin-bottom: 10px; letter-spacing: 3px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
         
         p.subtitle {
-            font-size: 16px; color: rgba(255,255,255,0.7); margin-bottom: 40px; font-weight: 300;
+            font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 50px; 
+            text-transform: uppercase; letter-spacing: 2px;
         }
 
-        /* --- 主按鈕設計 --- */
+        /* --- 主按鈕 (透明毛玻璃) --- */
         #start-btn {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             color: white;
-            padding: 18px 60px;
+            padding: 18px 70px;
             font-size: 18px;
             border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: flex; /* 讓內容置中 */
-            align-items: center; justify-content: center;
-            min-width: 200px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
 
-        #start-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.2); }
+        #start-btn:active { transform: scale(0.96); background: rgba(255,255,255,0.25); }
 
-        /* 按鈕內的轉圈圈 (預設隱藏) */
+        /* 轉圈圈動畫 */
         .spinner {
             width: 20px; height: 20px;
-            border: 2px solid rgba(255,255,255,0.3);
+            border: 2px solid rgba(255,255,255,0.1);
             border-top: 2px solid #fff;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
-            display: none; /* 預設不顯示 */
-            margin-right: 10px;
+            animation: spin 0.8s linear infinite;
+            display: none; margin-right: 12px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- VR 操作按鈕 (懸浮膠囊) --- */
+        /* --- VR 控制列 (底部懸浮) --- */
         .vr-controls {
             position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 15px; z-index: 1000;
+            z-index: 1000;
         }
 
         .vr-btn {
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(20, 20, 20, 0.85);
             backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
             color: white;
-            padding: 12px 24px;
-            border-radius: 30px;
-            font-size: 15px;
+            padding: 14px 30px;
+            border-radius: 50px;
+            font-size: 16px;
             cursor: pointer;
             display: none; /* 預設隱藏 */
-            align-items: center;
-            transition: background 0.2s;
+            letter-spacing: 1px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            transition: transform 0.2s;
         }
-        .vr-btn:active { background: rgba(0,0,0,0.8); }
+        .vr-btn:active { transform: scale(0.95); }
         
         /* 右上角退出按鈕 */
         #exit-btn {
             position: fixed; top: 20px; right: 20px; z-index: 1001;
-            padding: 8px 16px; font-size: 14px;
-            background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.3);
+            padding: 10px 20px; font-size: 14px; border-radius: 30px;
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3);
+            color: white; display: none; backdrop-filter: blur(4px);
         }
 
-        /* 底部版權 */
         .footer {
             position: absolute; bottom: 20px; width: 100%;
-            font-size: 12px; color: rgba(255,255,255,0.3);
+            font-size: 10px; color: rgba(255,255,255,0.2); letter-spacing: 1px;
         }
     </style>
 
@@ -106,22 +101,21 @@
 <body>
 
     <div id="overlay">
-        <div class="content-box">
-            <h1>VR360 導覽</h1>
-            <p class="subtitle">Immersive Virtual Reality Tour</p>
-            
-            <button id="start-btn">
-                <div class="spinner" id="btn-spinner"></div>
-                <span id="btn-text">開始體驗</span>
-            </button>
-        </div>
-        <div class="footer">Powered by WebVR Technology</div>
+        <h1>VR 360</h1>
+        <p class="subtitle">Virtual Reality Tour</p>
+        
+        <button id="start-btn">
+            <div class="spinner" id="btn-spinner"></div>
+            <span id="btn-text">開始體驗</span>
+        </button>
+        
+        <div class="footer">Interactive Experience</div>
     </div>
 
     <div class="vr-controls">
-        <button id="enter-vr-btn" class="vr-btn">👓 進入 VR 模式</button>
+        <button id="enter-vr-btn" class="vr-btn">進入 VR 模式</button>
     </div>
-    <button id="exit-btn" class="vr-btn">退出模式</button>
+    <button id="exit-btn">退出模式</button>
 
     <video id="video" loop muted crossOrigin="anonymous" playsinline webkit-playsinline style="display:none">
         <source src="video.mp4" type="video/mp4">
@@ -129,11 +123,9 @@
     <canvas id="video-canvas" style="display:none"></canvas>
 
     <script>
-        // 全域變數
         var camera, scene, renderer, effect, controls;
         var video, videoCanvas, videoContext, texture;
         var isVR = false;
-        var animationId;
 
         // UI 元素
         var startBtn = document.getElementById('start-btn');
@@ -143,21 +135,18 @@
         var enterVrBtn = document.getElementById('enter-vr-btn');
         var exitBtn = document.getElementById('exit-btn');
 
-        // 初始化
         init();
 
         function init() {
-            // 建立場景
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
 
-            // 畫布代理 (Canvas Proxy) - 解決 iPhone 黑畫面
+            // Canvas 代理設定
             video = document.getElementById('video');
             videoCanvas = document.getElementById('video-canvas');
             videoContext = videoCanvas.getContext('2d');
             
-            // 預設大小
             videoCanvas.width = 1920; 
             videoCanvas.height = 960;
             videoContext.fillStyle = '#000000';
@@ -166,77 +155,60 @@
             texture = new THREE.CanvasTexture(videoCanvas);
             texture.minFilter = THREE.LinearFilter;
             
-            // 建立球體
             var geometry = new THREE.SphereGeometry(500, 60, 40);
             geometry.scale(-1, 1, 1);
             var material = new THREE.MeshBasicMaterial({ map: texture });
             scene.add(new THREE.Mesh(geometry, material));
 
-            // 渲染器
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // 立體特效 (VR用)
             effect = new THREE.StereoEffect(renderer);
             effect.eyeSeparation = 1;
             effect.setSize(window.innerWidth, window.innerHeight);
 
-            // 事件監聽
             window.addEventListener('resize', onResize, false);
             setupButtons();
-            
-            // 開始渲染迴圈
             animate();
         }
 
         function setupButtons() {
-            // --- 點擊開始 ---
+            // 1. 開始體驗
             startBtn.addEventListener('click', function() {
-                // UI 變化：顯示轉圈圈
                 btnSpinner.style.display = 'block';
                 btnText.innerText = "載入中...";
-                startBtn.style.pointerEvents = 'none'; // 防止重複點擊
+                startBtn.style.pointerEvents = 'none';
 
-                video.muted = false; // 嘗試開啟聲音
+                video.muted = false; // 開啟聲音
                 
-                // 播放影片
                 video.play().then(function() {
-                    // 播放成功：淡出介面
                     overlay.style.opacity = 0;
                     setTimeout(function(){ overlay.style.display = 'none'; }, 500);
-                    
-                    enterVrBtn.style.display = 'flex'; // 顯示進入 VR 按鈕
+                    enterVrBtn.style.display = 'block';
                     
                     if (video.videoWidth) {
                         videoCanvas.width = video.videoWidth;
                         videoCanvas.height = video.videoHeight;
                     }
                 }).catch(function(err) {
-                    // 失敗備案
-                    console.warn("自動播放受阻，切換靜音模式");
+                    // 自動播放失敗備案
                     video.muted = true;
                     video.play();
-                    
                     overlay.style.opacity = 0;
                     setTimeout(function(){ overlay.style.display = 'none'; }, 500);
-                    enterVrBtn.style.display = 'flex';
+                    enterVrBtn.style.display = 'block';
                 });
             });
 
-            // --- 進入 VR ---
+            // 2. 進入 VR
             enterVrBtn.addEventListener('click', function() {
-                // 請求 iOS 權限
+                // 請求權限
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission()
                         .then(function(response) {
-                            if (response == 'granted') {
-                                enableVR();
-                            } else {
-                                alert("未授權陀螺儀，將無法轉頭。");
-                                enableVR();
-                            }
+                            enableVR(); // 無論授權與否都進入，避免卡住
                         })
                         .catch(function(e) { enableVR(); });
                 } else {
@@ -244,28 +216,31 @@
                 }
             });
 
-            // --- 退出 VR (修正卡頓關鍵) ---
+            // 3. 退出 VR (修復卡頓的關鍵邏輯)
             exitBtn.addEventListener('click', function() {
                 isVR = false;
                 
-                // 1. UI 切換
-                enterVrBtn.style.display = 'flex';
+                // UI 切換
+                enterVrBtn.style.display = 'block';
                 exitBtn.style.display = 'none';
                 
-                // 2. 清除控制器，重置相機
+                // 重置控制與相機
                 controls = null;
                 camera.position.set(0, 0, 0);
-                camera.rotation.set(0, 0, 0); // 視角回正
+                camera.rotation.set(0, 0, 0);
                 
-                // 3. 重置渲染器大小 (非常重要，不然會維持分屏大小)
+                // 【關鍵修復 1】關閉剪裁測試 (Scissor Test)
+                // StereoEffect 會開啟這個，退出時必須手動關閉，否則畫面會被切一半或卡住
+                renderer.setScissorTest(false);
+                renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 
-                // 4. 強制影片繼續播放 (解決 iOS 退出全螢幕後暫停的問題)
+                // 【關鍵修復 2】強制續播影片
                 if (video.paused) {
                     video.play();
                 }
 
-                // 5. 退出全螢幕
+                // 退出全螢幕
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
                 } else if (document.webkitExitFullscreen) {
@@ -277,7 +252,7 @@
         function enableVR() {
             isVR = true;
             enterVrBtn.style.display = 'none';
-            exitBtn.style.display = 'flex'; // 顯示退出鈕
+            exitBtn.style.display = 'block';
             
             if (!controls) {
                 controls = new THREE.DeviceOrientationControls(camera);
@@ -298,14 +273,12 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // 畫布持續更新
             if (video.readyState >= video.HAVE_CURRENT_DATA) {
                 videoContext.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
                 texture.needsUpdate = true;
             }
 
             if (isVR) {
-                // VR 模式：陀螺儀 + 分屏
                 if (controls) controls.update();
                 effect.render(scene, camera);
             } else {
