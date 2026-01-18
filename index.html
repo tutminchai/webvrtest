@@ -2,35 +2,45 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Three.js VR360 核心版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>VR360 最終完成版</title>
     <style>
         body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
         
-        /* 啟動覆蓋層 */
+        /* 啟動覆蓋層 UI */
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: flex;
+            background: rgba(0,0,0,0.9); display: flex;
             flex-direction: column; justify-content: center; align-items: center;
-            z-index: 999; color: white;
+            z-index: 999; color: white; text-align: center;
+        }
+        .box {
+            border: 1px solid #555; padding: 30px; border-radius: 15px; 
+            background: rgba(255,255,255,0.1); max-width: 80%;
         }
         #start-btn {
             padding: 15px 40px; font-size: 20px; background: #EF2D5E; 
-            color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;
+            color: white; border: none; border-radius: 30px; cursor: pointer; margin-top: 20px;
+            font-weight: bold;
         }
-        p { color: #ccc; }
+        p { color: #ccc; margin: 10px 0; }
     </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.min.js"></script>
 </head>
 <body>
 
     <div id="overlay">
-        <h2>VR360 核心播放器</h2>
-        <p>1. 點擊開始</p>
-        <p>2. 點擊下方 "ENTER VR"</p>
-        <button id="start-btn">開始體驗</button>
+        <div class="box">
+            <h2>VR360 體驗</h2>
+            <p>1. 點擊「開始」</p>
+            <p>2. 點擊下方 "ENTER VR"</p>
+            <p>3. 手機橫放放入眼鏡</p>
+            <button id="start-btn">開始體驗</button>
+        </div>
     </div>
 
-    <video id="video" loop crossOrigin="anonymous" playsinline style="display:none">
+    <video id="video" loop crossOrigin="anonymous" playsinline webkit-playsinline style="display:none" muted>
         <source src="video.mp4" type="video/mp4">
     </video>
 
@@ -47,9 +57,11 @@
         import * as THREE from 'three';
         import { VRButton } from 'three/addons/webxr/VRButton.js';
 
+        // 2. 啟動 Polyfill (讓 iPhone 聽懂 WebXR 指令)
+        const polyfill = new WebXRPolyfill();
+
         let camera, scene, renderer;
         let video, texture;
-
         const startBtn = document.getElementById('start-btn');
         const overlay = document.getElementById('overlay');
 
@@ -60,61 +72,60 @@
             const container = document.createElement('div');
             document.body.appendChild(container);
 
-            // 1. 建立場景
+            // 場景
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000); // 預設背景黑
+            scene.background = new THREE.Color(0x000000);
 
-            // 2. 建立攝影機
+            // 攝影機
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
             
-            // 3. 處理影片與材質 (最關鍵的一步)
+            // 處理影片與材質
             video = document.getElementById('video');
             
-            // 建立 VideoTexture
+            // 使用 VideoTexture
             texture = new THREE.VideoTexture(video);
-            texture.colorSpace = THREE.SRGBColorSpace; // 確保顏色正確
-            texture.minFilter = THREE.LinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-
-            // 4. 建立球體 (把影片貼在球內壁)
+            texture.colorSpace = THREE.SRGBColorSpace;
+            
+            // 球體 (半徑 500)
             const geometry = new THREE.SphereGeometry(500, 60, 40);
-            // 幾何體翻轉 (因為我們是在球裡面看)
+            // 內外翻轉 (因為我們在球裡面)
             geometry.scale(-1, 1, 1);
 
-            // 使用 Basic 材質 (不受光照影響，避免全黑)
+            // 使用 Basic 材質 (自發光，不受光照影響，防止黑畫面)
             const material = new THREE.MeshBasicMaterial({ map: texture });
             const mesh = new THREE.Mesh(geometry, material);
             scene.add(mesh);
 
-            // 5. 渲染器設定
+            // 渲染器
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
-            // 開啟 VR 支援
+            
+            // 開啟 VR
             renderer.xr.enabled = true; 
-            // 修正顏色編碼
-            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.xr.setReferenceSpaceType('local'); // 重要：設定 VR 空間類型
             
             container.appendChild(renderer.domElement);
 
-            // 6. 加入官方的 VR 按鈕
-            // 這會自動偵測裝置並產生 "ENTER VR"
+            // 加入 VR 按鈕
             document.body.appendChild(VRButton.createButton(renderer));
 
-            // RWD 調整
+            // RWD
             window.addEventListener('resize', onWindowResize);
 
-            // 綁定按鈕事件
+            // 按鈕事件
             startBtn.addEventListener('click', function() {
-                overlay.style.display = 'none';
-                
                 // 解鎖聲音並播放
                 video.muted = false;
                 video.play().then(()=> {
                     console.log("Video Playing");
+                    overlay.style.display = 'none';
                 }).catch(err => {
-                    console.error("Play failed:", err);
-                    alert("播放失敗，請確認影片格式");
+                    console.error("Play error:", err);
+                    // 如果解鎖聲音失敗，嘗試靜音播放 (保底)
+                    video.muted = true;
+                    video.play();
+                    overlay.style.display = 'none';
                 });
             });
         }
@@ -126,13 +137,10 @@
         }
 
         function animate() {
-            // 使用 WebXR 專用的渲染迴圈
             renderer.setAnimationLoop(render);
         }
 
         function render() {
-            // 如果影片在播放，確保紋理更新
-            // Three.js 的 VideoTexture 通常會自動處理，但這裡我們不干涉
             renderer.render(scene, camera);
         }
     </script>
