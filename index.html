@@ -2,14 +2,25 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>VR360 教學展示平台</title>
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Helvetica', sans-serif; }
+        /* 強制將所有背景設為黑色，解決「白畫面」問題 */
+        html, body {
+            background-color: #000000;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Helvetica', sans-serif;
+            width: 100%;
+            height: 100%;
+        }
 
-        /* --- 1. 教學引導覆蓋層 (Instruction Overlay) --- */
+        /* --- 1. 教學引導覆蓋層 --- */
         #overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -32,10 +43,9 @@
         }
 
         .step-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #4CC3D9; }
-        .step-item { font-size: 18px; margin: 15px 0; line-height: 1.5; }
+        .step-item { font-size: 16px; margin: 15px 0; line-height: 1.5; text-align: left; }
         .highlight { color: #FFC65C; font-weight: bold; }
 
-        /* 開始按鈕 */
         #start-btn {
             margin-top: 30px;
             padding: 15px 40px;
@@ -46,39 +56,27 @@
             border-radius: 50px;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(239, 45, 94, 0.5);
-            transition: transform 0.2s;
         }
-        #start-btn:active { transform: scale(0.95); }
 
-        /* --- 2. 客製化 VR 按鈕 (置於底部中央) --- */
+        /* --- 2. 客製化 VR 按鈕 --- */
         #enter-vr-btn {
             position: fixed;
-            /* 關鍵：設定 bottom 為 80px 或 10%，避開 iPhone Safari 底部橫條 */
-            bottom: 80px; 
+            bottom: 80px; /* 避開 iPhone 底部橫條 */
             left: 50%;
             transform: translateX(-50%);
             z-index: 9998;
-            
-            display: none; /* 一開始隱藏，等點擊開始後才出現 */
-            
-            padding: 12px 24px;
-            background: rgba(0, 0, 0, 0.6);
-            border: 2px solid white;
+            display: none; 
+            padding: 12px 30px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #4CC3D9;
             border-radius: 30px;
-            color: white;
+            color: #4CC3D9;
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            pointer-events: auto;
             backdrop-filter: blur(5px);
         }
-
-        /* 加入一個眼鏡圖示 (使用 CSS 繪製簡單圖形，避免依賴外部圖片) */
-        #enter-vr-btn::before {
-            content: "👓"; 
-            margin-right: 8px;
-            font-size: 18px;
-        }
+        #enter-vr-btn::before { content: "👓 "; font-size: 18px; }
 
     </style>
 </head>
@@ -86,17 +84,20 @@
 
     <div id="overlay">
         <div class="step-box">
-            <div class="step-title">VR 體驗指南</div>
-            <div class="step-item">1. 點擊下方 <span class="highlight">開始體驗</span></div>
-            <div class="step-item">2. 點擊底部 <span class="highlight">VR 眼鏡按鈕</span></div>
-            <div class="step-item">3. 將手機橫放並放入 <span class="highlight">Cardboard</span></div>
+            <div class="step-title">VR 體驗指南 (iOS版)</div>
+            <div class="step-item">1. 點擊 <span class="highlight">開始體驗</span></div>
+            <div class="step-item">2. 點擊下方 <span class="highlight">VR 按鈕</span></div>
+            <div class="step-item">3. 若跳出授權請求，<br>務必點選 <span class="highlight">允許 (Allow)</span></div>
+            <div class="step-item">4. 手機橫放放入 Cardboard</div>
         </div>
         <button id="start-btn" onclick="startExperience()">開始體驗</button>
     </div>
 
-    <div id="enter-vr-btn" onclick="enterVRMode()">進入 VR 模式</div>
+    <div id="enter-vr-btn" onclick="requestDevicePermission()">進入 VR 模式</div>
 
-    <a-scene vr-mode-ui="enabled: false" loading-screen="dotsColor: white; backgroundColor: black">
+    <a-scene vr-mode-ui="enabled: false" 
+             loading-screen="dotsColor: white; backgroundColor: black"
+             renderer="antialias: true; colorManagement: true; sortObjects: true;">
         
         <a-assets>
             <video id="vr-video" 
@@ -105,41 +106,73 @@
                    preload="auto" 
                    crossorigin="anonymous" 
                    playsinline 
-                   webkit-playsinline>
-            </video>
+                   webkit-playsinline> </video>
         </a-assets>
 
-        <a-videosphere src="#vr-video" rotation="0 -90 0"></a-videosphere>
+        <a-videosphere src="#vr-video" rotation="0 -90 0" radius="500"></a-videosphere>
 
         <a-camera user-height="1.6" look-controls="enabled: true"></a-camera>
 
     </a-scene>
 
     <script>
+        var video = document.querySelector('#vr-video');
+        var scene = document.querySelector('a-scene');
+
         function startExperience() {
-            var video = document.querySelector('#vr-video');
             var overlay = document.querySelector('#overlay');
             var vrBtn = document.querySelector('#enter-vr-btn');
 
-            // 1. 播放影片 (需要使用者互動才能啟動聲音與影像)
+            // 嘗試播放影片
             video.play().then(() => {
-                console.log("Video playing");
+                console.log("Video playing...");
             }).catch(e => {
                 console.error("Play error:", e);
+                // 就算報錯，也要讓使用者能看到 VR 按鈕試試看
             });
 
-            // 2. 隱藏教學層
             overlay.style.display = 'none';
-
-            // 3. 顯示底部的 VR 按鈕
             vrBtn.style.display = 'block';
         }
 
-        function enterVRMode() {
-            var scene = document.querySelector('a-scene');
-            // 呼叫 A-Frame 的進入 VR 模式功能
-            scene.enterVR();
+        // --- iOS 專用權限請求函數 ---
+        function requestDevicePermission() {
+            // 檢查是否為 iOS 13+ 需要授權的裝置
+            if (
+                typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function'
+            ) {
+                // 彈出系統對話框
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            // 授權成功，進入 VR
+                            enterVRMode();
+                        } else {
+                            alert('需要允許動作感測器權限才能觀看 VR！');
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                // 非 iOS 13+ 裝置 (Android 或 舊 iPhone)，直接進入
+                enterVRMode();
+            }
         }
+
+        function enterVRMode() {
+            // 進入 VR 模式
+            scene.enterVR();
+            
+            // 再次確保影片在播放 (防止切換時暫停)
+            if(video.paused) {
+                video.play();
+            }
+        }
+        
+        // 監聽 VR 模式切換，確保橫置時影片繼續播放
+        scene.addEventListener('enter-vr', function () {
+             video.play();
+        });
     </script>
 </body>
 </html>
