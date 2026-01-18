@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>VR360 終極手動版</title>
+    <title>VR360 防彈修復版</title>
     <style>
         body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
         
@@ -15,31 +15,54 @@
         }
         .box {
             border: 1px solid #555; padding: 25px; border-radius: 15px; 
-            background: rgba(255,255,255,0.15); max-width: 85%;
+            background: rgba(30,30,30,0.9); max-width: 85%;
         }
         #start-btn {
-            padding: 15px 40px; font-size: 20px; background: #EF2D5E; 
-            color: white; border: none; border-radius: 30px; cursor: pointer; margin-top: 20px;
-            font-weight: bold;
+            padding: 15px 50px; font-size: 22px; background: #EF2D5E; 
+            color: white; border: none; border-radius: 50px; cursor: pointer; margin-top: 25px;
+            font-weight: bold; transition: transform 0.1s;
         }
-        /* 退出按鈕 (在 VR 模式下顯示) */
+        #start-btn:active { transform: scale(0.95); }
+        
+        #status-text { margin-top: 15px; color: #aaa; font-size: 14px; }
+
+        /* 退出按鈕 */
         #exit-btn {
             position: fixed; top: 20px; right: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.5); color: white; border: 1px solid white;
-            padding: 10px; border-radius: 5px; display: none; cursor: pointer;
+            background: rgba(0,0,0,0.6); color: white; border: 1px solid white;
+            padding: 8px 15px; border-radius: 20px; display: none; cursor: pointer;
+            backdrop-filter: blur(5px);
         }
-        p { color: #ccc; margin: 10px 0; font-size: 15px; }
     </style>
+
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            alert("程式錯誤:\n" + msg + "\n行數: " + line);
+            document.getElementById('status-text').innerText = "錯誤: " + msg;
+            return false;
+        };
+    </script>
+
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 <body>
 
     <div id="overlay">
         <div class="box">
             <h2>VR360 體驗</h2>
-            <p>1. 點擊「開始」</p>
-            <p>2. 點擊 "進入 VR 模式"</p>
-            <p>3. 允許動作權限 (若跳出)</p>
-            <button id="start-btn">開始</button>
+            <p>使用 Canvas 代理 + 手動立體渲染</p>
+            <p style="color: yellow; font-size: 12px;">若點擊無反應請檢查網路</p>
+            <button id="start-btn">載入影片</button>
+            <div id="status-text">準備就緒</div>
         </div>
     </div>
 
@@ -51,114 +74,135 @@
 
     <canvas id="video-canvas" style="display:none"></canvas>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
-
     <script type="module">
         import * as THREE from 'three';
-        // 引入立體分屏特效
         import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
-        // 引入陀螺儀控制
         import { DeviceOrientationControls } from 'three/addons/controls/DeviceOrientationControls.js';
 
+        // 宣告全域變數
         let camera, scene, renderer, effect, controls;
         let video, videoCanvas, videoContext, texture;
         let isVRMode = false;
-        
+        let animationId;
+
+        // UI 元素
         const startBtn = document.getElementById('start-btn');
         const overlay = document.getElementById('overlay');
+        const statusText = document.getElementById('status-text');
         const exitBtn = document.getElementById('exit-btn');
+        
+        // 建立「進入 VR」按鈕
+        const enterVrBtn = document.createElement('button');
+        enterVrBtn.innerText = "進入 VR 模式 (Enter VR)";
+        enterVrBtn.style.cssText = "position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); padding: 15px 30px; background: rgba(0,0,0,0.8); color: white; border: 2px solid #4CC3D9; border-radius: 30px; font-weight: bold; z-index: 998; display: none; font-size: 16px;";
+        document.body.appendChild(enterVrBtn);
 
-        // 建立一個假的 VR 按鈕
-        const vrBtn = document.createElement('button');
-        vrBtn.innerText = "進入 VR 模式";
-        vrBtn.style.cssText = "position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%); padding: 12px 24px; background: rgba(0,0,0,0.8); color: white; border: 2px solid white; border-radius: 30px; font-weight: bold; z-index: 998; display: none;";
-        document.body.appendChild(vrBtn);
-
-        init();
-        animate();
+        try {
+            init();
+            animate();
+            statusText.innerText = "核心載入成功，請點擊按鈕";
+        } catch (e) {
+            alert("初始化失敗: " + e.message);
+        }
 
         function init() {
+            // 場景設定
             const container = document.createElement('div');
             document.body.appendChild(container);
 
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111111); // 深灰底
+            scene.background = new THREE.Color(0x111111);
 
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
-            
-            // --- Canvas 代理 (保留這個，因為它很穩定) ---
+
+            // --- 核心：Canvas 畫布代理 (解決 iPhone 黑畫面) ---
             video = document.getElementById('video');
             videoCanvas = document.getElementById('video-canvas');
             videoContext = videoCanvas.getContext('2d');
 
+            // 預設給一個灰色背景，證明 Canvas 有在運作
             videoCanvas.width = 1920;
             videoCanvas.height = 960;
-            videoContext.fillStyle = '#000000';
-            videoContext.fillRect(0,0, videoCanvas.width, videoCanvas.height);
+            videoContext.fillStyle = '#333';
+            videoContext.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
+            
+            // 寫字在畫布上測試
+            videoContext.font = "100px Arial";
+            videoContext.fillStyle = "white";
+            videoContext.fillText("載入中...", 800, 480);
 
             texture = new THREE.CanvasTexture(videoCanvas);
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.minFilter = THREE.LinearFilter;
             
-            // 球體
+            // 建立球體
             const geometry = new THREE.SphereGeometry(500, 60, 40);
-            geometry.scale(-1, 1, 1);
+            geometry.scale(-1, 1, 1); // 內外翻轉
             const material = new THREE.MeshBasicMaterial({ map: texture });
             scene.add(new THREE.Mesh(geometry, material));
 
-            // --- 渲染器設定 ---
+            // 渲染器
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderer.domElement);
 
-            // --- 立體特效 (這是重點！) ---
+            // 立體分屏特效 (StereoEffect)
             effect = new StereoEffect(renderer);
-            effect.eyeSeparation = 1; // 調整兩眼距離，可微調
+            effect.eyeSeparation = 1; 
             effect.setSize(window.innerWidth, window.innerHeight);
 
-            // --- 事件監聽 ---
+            // 事件監聽
             window.addEventListener('resize', onWindowResize);
 
-            // 1. 點擊開始
+            // --- 按鈕 1: 載入影片 ---
             startBtn.addEventListener('click', function() {
+                statusText.innerText = "嘗試播放影片...";
+                
+                // 先解鎖聲音
                 video.muted = false;
-                video.play().then(()=> {
+                
+                video.play().then(() => {
+                    console.log("播放成功");
+                    statusText.innerText = "播放成功！";
                     overlay.style.display = 'none';
-                    vrBtn.style.display = 'block'; // 顯示進入 VR 按鈕
+                    enterVrBtn.style.display = 'block';
+                    
+                    // 更新畫布尺寸
+                    if (video.videoWidth) {
+                        videoCanvas.width = video.videoWidth;
+                        videoCanvas.height = video.videoHeight;
+                    }
                 }).catch(err => {
+                    console.error(err);
+                    // 備案：靜音播放
+                    statusText.innerText = "自動播放受阻，嘗試靜音播放...";
                     video.muted = true;
-                    video.play();
-                    overlay.style.display = 'none';
-                    vrBtn.style.display = 'block';
+                    video.play().then(() => {
+                        overlay.style.display = 'none';
+                        enterVrBtn.style.display = 'block';
+                    }).catch(e => alert("影片播放失敗，請檢查檔案: " + e.message));
                 });
             });
 
-            // 2. 點擊進入 VR
-            vrBtn.addEventListener('click', function() {
+            // --- 按鈕 2: 進入 VR ---
+            enterVrBtn.addEventListener('click', function() {
                 requestOrientationPermission();
             });
 
-            // 3. 退出 VR
+            // --- 按鈕 3: 退出 VR ---
             exitBtn.addEventListener('click', function() {
                 isVRMode = false;
                 exitBtn.style.display = 'none';
-                vrBtn.style.display = 'block';
-                // 恢復正常視角 (稍微重置一下相機)
-                camera.fov = 70;
-                camera.updateProjectionMatrix();
+                enterVrBtn.style.display = 'block';
+                camera.position.set(0,0,0);
+                camera.rotation.set(0,0,0);
+                controls = null; // 移除陀螺儀控制
                 onWindowResize();
             });
         }
 
-        // --- 請求 iOS 陀螺儀權限 ---
+        // iOS 陀螺儀權限請求
         function requestOrientationPermission() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -166,26 +210,29 @@
                         if (response === 'granted') {
                             enableVRMode();
                         } else {
-                            alert('需要動作權限才能轉頭觀看');
+                            alert('您拒絕了動作權限，無法轉頭觀看。');
+                            // 即使拒絕也讓他進去看看，只是不能轉頭
+                            enableVRMode(); 
                         }
                     })
-                    .catch(console.error);
+                    .catch(e => alert("權限請求錯誤: " + e));
             } else {
+                // Android 直接進入
                 enableVRMode();
             }
         }
 
         function enableVRMode() {
             isVRMode = true;
-            vrBtn.style.display = 'none';
+            enterVrBtn.style.display = 'none';
             exitBtn.style.display = 'block';
             
-            // 啟動陀螺儀控制
+            // 啟動陀螺儀
             if (!controls) {
                 controls = new DeviceOrientationControls(camera);
             }
             
-            // 強制全螢幕 (如果瀏覽器支援)
+            // 嘗試全螢幕
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch(err => {});
             }
@@ -200,21 +247,19 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            
-            // Canvas 代理更新
+
+            // 每一幀將影片畫到 Canvas
             if (video.readyState >= video.HAVE_CURRENT_DATA) {
                 videoContext.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
                 texture.needsUpdate = true;
             }
 
             if (isVRMode) {
-                // VR 模式：使用陀螺儀 + 立體分屏渲染
+                // VR 模式：陀螺儀 + 立體渲染
                 if (controls) controls.update();
                 effect.render(scene, camera);
             } else {
-                // 一般模式：普通渲染
-                // 這裡可以加一個簡單的滑鼠/手指拖曳控制 (OrbitControls)，
-                // 但為了簡化程式碼，這裡一般模式暫時固定視角或您可自行加入
+                // 一般模式：平面渲染
                 renderer.render(scene, camera);
             }
         }
