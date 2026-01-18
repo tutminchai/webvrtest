@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>VR360 畫布修復版</title>
+    <title>VR360 最終完美版</title>
     <style>
         body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
         
@@ -14,43 +14,35 @@
             z-index: 999; color: white; text-align: center;
         }
         .box {
-            border: 1px solid #555; padding: 20px; border-radius: 15px; 
-            background: rgba(255,255,255,0.1); max-width: 85%;
+            border: 1px solid #555; padding: 25px; border-radius: 15px; 
+            background: rgba(255,255,255,0.15); max-width: 85%;
         }
         #start-btn {
-            padding: 15px 40px; font-size: 18px; background: #EF2D5E; 
+            padding: 15px 40px; font-size: 20px; background: #EF2D5E; 
             color: white; border: none; border-radius: 30px; cursor: pointer; margin-top: 20px;
             font-weight: bold;
         }
-        p { color: #ccc; margin: 10px 0; font-size: 14px; }
+        p { color: #ccc; margin: 10px 0; font-size: 15px; }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.min.js"></script>
     
     <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-    <script>
-        // 啟動除錯模式
-        var vConsole = new VConsole();
-        console.log("vConsole 啟動: 準備捕捉錯誤");
-    </script>
+    <script> var vConsole = new VConsole(); </script>
 </head>
 <body>
 
     <div id="overlay">
         <div class="box">
-            <h2>VR360 最終修復</h2>
-            <p>使用 Canvas 代理渲染技術</p>
-            <p>1. 點擊「開始載入」</p>
+            <h2>VR360 體驗</h2>
+            <p>1. 點擊「開始」載入影片</p>
             <p>2. 等待畫面出現</p>
             <p>3. 點擊底部 "ENTER VR"</p>
-            <button id="start-btn">開始載入</button>
+            <button id="start-btn">開始</button>
         </div>
     </div>
 
-    <video id="video" 
-           loop muted crossOrigin="anonymous" 
-           playsinline webkit-playsinline 
-           style="display:none">
+    <video id="video" loop muted crossOrigin="anonymous" playsinline webkit-playsinline style="display:none">
         <source src="video.mp4" type="video/mp4">
     </video>
 
@@ -69,9 +61,16 @@
         import * as THREE from 'three';
         import { VRButton } from 'three/addons/webxr/VRButton.js';
 
-        // 啟動 Polyfill
-        const polyfill = new WebXRPolyfill();
-        console.log("Polyfill active");
+        // --- 【關鍵修正】Polyfill 設定 ---
+        // 我們強制關閉 DPDB 查詢，避免 iPhone 因為查不到型號而報錯
+        const polyfill = new WebXRPolyfill({
+            cardboard: true,
+            // 這些設定是為了防止紅字錯誤
+            allowCardboardOnDesktop: true,
+            // 強制使用備用參數，不讓它去網路抓資料庫
+            dpdbURL: null 
+        });
+        console.log("Polyfill active (Safe Mode)");
 
         let camera, scene, renderer;
         let video, videoCanvas, videoContext, texture;
@@ -86,37 +85,33 @@
             document.body.appendChild(container);
 
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000); // 背景黑
+            scene.background = new THREE.Color(0x000000);
 
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
             
-            // --- 核心修改：Canvas 代理 ---
+            // --- 畫布與影片設定 ---
             video = document.getElementById('video');
             videoCanvas = document.getElementById('video-canvas');
             videoContext = videoCanvas.getContext('2d');
 
-            // 預設畫布大小 (避免初始全黑)
+            // 預設填滿灰色，避免一開始全黑
             videoCanvas.width = 1920;
             videoCanvas.height = 960;
-            videoContext.fillStyle = '#333333';
-            videoContext.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
+            videoContext.fillStyle = '#444';
+            videoContext.fillRect(0,0, videoCanvas.width, videoCanvas.height);
 
-            // 使用 CanvasTexture 而不是 VideoTexture
             texture = new THREE.CanvasTexture(videoCanvas);
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.minFilter = THREE.LinearFilter;
-            texture.magFilter = THREE.LinearFilter;
             
             // 球體
             const geometry = new THREE.SphereGeometry(500, 60, 40);
-            geometry.scale(-1, 1, 1); // 內外翻轉
+            geometry.scale(-1, 1, 1);
 
-            // 使用 Basic 材質
             const material = new THREE.MeshBasicMaterial({ map: texture });
             const mesh = new THREE.Mesh(geometry, material);
             scene.add(mesh);
 
-            // 渲染器
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -124,49 +119,39 @@
             renderer.xr.setReferenceSpaceType('local');
             
             container.appendChild(renderer.domElement);
-
-            // 加入 VR 按鈕
-            const vrButton = VRButton.createButton(renderer);
-            document.body.appendChild(vrButton);
+            document.body.appendChild(VRButton.createButton(renderer));
 
             window.addEventListener('resize', onWindowResize);
 
-            // --- 點擊事件 ---
+            // --- 按鈕互動 ---
             startBtn.addEventListener('click', function() {
-                console.log("User clicked start");
-                
-                // 1. 播放影片
+                // 解除靜音並播放
+                video.muted = false;
                 video.play().then(()=> {
-                    console.log("Video playing successfully");
+                    console.log("Video Play Success");
                     overlay.style.display = 'none';
-                    
-                    // 更新畫布尺寸以符合影片真實尺寸
-                    if (video.videoWidth) {
+                    if(video.videoWidth) {
                         videoCanvas.width = video.videoWidth;
                         videoCanvas.height = video.videoHeight;
                     }
                 }).catch(err => {
-                    console.error("Video play error:", err);
-                    alert("播放錯誤: " + err.message);
+                    console.error("Play Failed:", err);
+                    // 備案：如果解鎖聲音失敗，嘗試靜音播放
+                    video.muted = true;
+                    video.play();
+                    overlay.style.display = 'none';
                 });
-            });
-            
-            // 監聽 VR 按鈕點擊，防止進入 VR 後暫停
-            vrButton.addEventListener('click', function() {
-                console.log("Entering VR...");
-                setTimeout(() => {
-                    if(video.paused) {
-                        console.log("Resuming video in VR");
-                        video.play();
-                    }
-                }, 1000);
             });
         }
 
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            // --- 【關鍵修正】防止 VR 模式下的尺寸衝突 ---
+            // 只有在「不是」VR 呈現模式時，才允許調整視窗大小
+            if (!renderer.xr.isPresenting) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
         }
 
         function animate() {
@@ -174,14 +159,11 @@
         }
 
         function render() {
-            // --- 關鍵：手動將影片畫到 Canvas 上 ---
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                // 將影片的當前影格畫到 Canvas
+            // 每一幀手動將 Video 畫到 Canvas 上 (解決 iPhone 黑畫面)
+            if (video.readyState >= video.HAVE_CURRENT_DATA) {
                 videoContext.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
-                // 告訴 Three.js 紋理已經更新，需要重繪
                 texture.needsUpdate = true;
             }
-
             renderer.render(scene, camera);
         }
     </script>
