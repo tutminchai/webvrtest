@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>VR360 防彈修復版</title>
+    <title>VR360 復古穩定版</title>
     <style>
         body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
         
@@ -14,44 +14,42 @@
             z-index: 999; color: white; text-align: center;
         }
         .box {
-            border: 1px solid #555; padding: 25px; border-radius: 15px; 
-            background: rgba(30,30,30,0.9); max-width: 85%;
+            border: 1px solid #666; padding: 30px; border-radius: 15px; 
+            background: rgba(20,20,20,0.95); max-width: 80%;
         }
         #start-btn {
             padding: 15px 50px; font-size: 22px; background: #EF2D5E; 
             color: white; border: none; border-radius: 50px; cursor: pointer; margin-top: 25px;
-            font-weight: bold; transition: transform 0.1s;
+            font-weight: bold;
         }
-        #start-btn:active { transform: scale(0.95); }
+        #status { margin-top: 15px; color: #aaa; font-size: 14px; }
         
-        #status-text { margin-top: 15px; color: #aaa; font-size: 14px; }
-
-        /* 退出按鈕 */
+        /* 退出與進入按鈕 */
+        .vr-btn {
+            position: fixed; z-index: 1000; cursor: pointer;
+            background: rgba(0,0,0,0.7); color: white; border: 2px solid white;
+            font-weight: bold;
+        }
+        #enter-vr-btn {
+            bottom: 50px; left: 50%; transform: translateX(-50%);
+            padding: 15px 30px; border-radius: 30px; display: none; font-size: 16px;
+        }
         #exit-btn {
-            position: fixed; top: 20px; right: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.6); color: white; border: 1px solid white;
-            padding: 8px 15px; border-radius: 20px; display: none; cursor: pointer;
-            backdrop-filter: blur(5px);
+            top: 20px; right: 20px; padding: 8px 15px; border-radius: 20px; display: none;
         }
     </style>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/controls/DeviceOrientationControls.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/effects/StereoEffect.js"></script>
+
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
     <script>
-        window.onerror = function(msg, url, line, col, error) {
-            alert("程式錯誤:\n" + msg + "\n行數: " + line);
-            document.getElementById('status-text').innerText = "錯誤: " + msg;
-            return false;
-        };
-    </script>
-
-    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
-
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
+        // 啟動 vConsole
+        var vConsole = new VConsole();
+        console.log("系統啟動: 傳統模式 (No Modules)");
     </script>
 </head>
 <body>
@@ -59,14 +57,15 @@
     <div id="overlay">
         <div class="box">
             <h2>VR360 體驗</h2>
-            <p>使用 Canvas 代理 + 手動立體渲染</p>
-            <p style="color: yellow; font-size: 12px;">若點擊無反應請檢查網路</p>
-            <button id="start-btn">載入影片</button>
-            <div id="status-text">準備就緒</div>
+            <p>復古架構 + Canvas 核心</p>
+            <div id="loading-check" style="color: yellow; font-size:12px;">正在檢查程式庫...</div>
+            <button id="start-btn" style="display:none">載入影片</button>
+            <div id="status">初始化中...</div>
         </div>
     </div>
 
-    <button id="exit-btn">退出 VR</button>
+    <button id="enter-vr-btn" class="vr-btn">進入 VR 模式</button>
+    <button id="exit-btn" class="vr-btn">退出</button>
 
     <video id="video" loop muted crossOrigin="anonymous" playsinline webkit-playsinline style="display:none">
         <source src="video.mp4" type="video/mp4">
@@ -74,192 +73,180 @@
 
     <canvas id="video-canvas" style="display:none"></canvas>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
-        import { DeviceOrientationControls } from 'three/addons/controls/DeviceOrientationControls.js';
+    <script>
+        // --- 檢查程式庫是否載入成功 ---
+        // 這是解決「無反應」的關鍵檢查
+        window.onload = function() {
+            var checkDiv = document.getElementById('loading-check');
+            var startBtn = document.getElementById('start-btn');
+            
+            if (typeof THREE === 'undefined') {
+                checkDiv.innerHTML = "❌ 錯誤: 無法連線至 Three.js CDN<br>請檢查網路連線";
+                checkDiv.style.color = "red";
+                alert("嚴重錯誤: 程式庫下載失敗，請切換網路 (如 4G/Wi-Fi) 再試");
+            } else {
+                checkDiv.innerHTML = "✅ 核心程式庫已載入";
+                checkDiv.style.color = "#4caf50";
+                startBtn.style.display = "block"; // 顯示按鈕
+                document.getElementById('status').innerText = "準備就緒";
+                initVR(); // 啟動主程式
+            }
+        };
 
-        // 宣告全域變數
-        let camera, scene, renderer, effect, controls;
-        let video, videoCanvas, videoContext, texture;
-        let isVRMode = false;
-        let animationId;
+        // --- 全域變數 ---
+        var camera, scene, renderer, effect, controls;
+        var video, videoCanvas, videoContext, texture;
+        var isVR = false;
 
-        // UI 元素
-        const startBtn = document.getElementById('start-btn');
-        const overlay = document.getElementById('overlay');
-        const statusText = document.getElementById('status-text');
-        const exitBtn = document.getElementById('exit-btn');
-        
-        // 建立「進入 VR」按鈕
-        const enterVrBtn = document.createElement('button');
-        enterVrBtn.innerText = "進入 VR 模式 (Enter VR)";
-        enterVrBtn.style.cssText = "position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); padding: 15px 30px; background: rgba(0,0,0,0.8); color: white; border: 2px solid #4CC3D9; border-radius: 30px; font-weight: bold; z-index: 998; display: none; font-size: 16px;";
-        document.body.appendChild(enterVrBtn);
+        function initVR() {
+            try {
+                // 場景
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x111111);
+                camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
 
-        try {
-            init();
-            animate();
-            statusText.innerText = "核心載入成功，請點擊按鈕";
-        } catch (e) {
-            alert("初始化失敗: " + e.message);
+                // --- 畫布代理設定 (iPhone 防黑屏關鍵) ---
+                video = document.getElementById('video');
+                videoCanvas = document.getElementById('video-canvas');
+                videoContext = videoCanvas.getContext('2d');
+                
+                // 預設畫布
+                videoCanvas.width = 1920; 
+                videoCanvas.height = 960;
+                videoContext.fillStyle = '#222';
+                videoContext.fillRect(0,0,1920,960);
+                
+                texture = new THREE.CanvasTexture(videoCanvas);
+                texture.minFilter = THREE.LinearFilter;
+                
+                // 建立球體
+                var geometry = new THREE.SphereGeometry(500, 60, 40);
+                geometry.scale(-1, 1, 1);
+                var material = new THREE.MeshBasicMaterial({ map: texture });
+                scene.add(new THREE.Mesh(geometry, material));
+
+                // 渲染器
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+
+                // 立體特效 (使用舊版語法)
+                effect = new THREE.StereoEffect(renderer);
+                effect.eyeSeparation = 1;
+                effect.setSize(window.innerWidth, window.innerHeight);
+
+                // 綁定事件
+                window.addEventListener('resize', onResize, false);
+                setupButtons();
+                animate();
+
+                console.log("主程式初始化完成");
+
+            } catch (e) {
+                alert("初始化錯誤: " + e.message);
+                console.error(e);
+            }
         }
 
-        function init() {
-            // 場景設定
-            const container = document.createElement('div');
-            document.body.appendChild(container);
+        function setupButtons() {
+            var startBtn = document.getElementById('start-btn');
+            var overlay = document.getElementById('overlay');
+            var enterBtn = document.getElementById('enter-vr-btn');
+            var exitBtn = document.getElementById('exit-btn');
+            var status = document.getElementById('status');
 
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111111);
-
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
-
-            // --- 核心：Canvas 畫布代理 (解決 iPhone 黑畫面) ---
-            video = document.getElementById('video');
-            videoCanvas = document.getElementById('video-canvas');
-            videoContext = videoCanvas.getContext('2d');
-
-            // 預設給一個灰色背景，證明 Canvas 有在運作
-            videoCanvas.width = 1920;
-            videoCanvas.height = 960;
-            videoContext.fillStyle = '#333';
-            videoContext.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
-            
-            // 寫字在畫布上測試
-            videoContext.font = "100px Arial";
-            videoContext.fillStyle = "white";
-            videoContext.fillText("載入中...", 800, 480);
-
-            texture = new THREE.CanvasTexture(videoCanvas);
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.minFilter = THREE.LinearFilter;
-            
-            // 建立球體
-            const geometry = new THREE.SphereGeometry(500, 60, 40);
-            geometry.scale(-1, 1, 1); // 內外翻轉
-            const material = new THREE.MeshBasicMaterial({ map: texture });
-            scene.add(new THREE.Mesh(geometry, material));
-
-            // 渲染器
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            container.appendChild(renderer.domElement);
-
-            // 立體分屏特效 (StereoEffect)
-            effect = new StereoEffect(renderer);
-            effect.eyeSeparation = 1; 
-            effect.setSize(window.innerWidth, window.innerHeight);
-
-            // 事件監聽
-            window.addEventListener('resize', onWindowResize);
-
-            // --- 按鈕 1: 載入影片 ---
+            // 1. 載入按鈕
             startBtn.addEventListener('click', function() {
-                statusText.innerText = "嘗試播放影片...";
+                status.innerText = "正在緩衝影片...";
+                video.muted = false; // 嘗試開啟聲音
                 
-                // 先解鎖聲音
-                video.muted = false;
-                
-                video.play().then(() => {
-                    console.log("播放成功");
-                    statusText.innerText = "播放成功！";
+                video.play().then(function() {
+                    status.innerText = "播放中";
                     overlay.style.display = 'none';
-                    enterVrBtn.style.display = 'block';
+                    enterBtn.style.display = 'block';
                     
-                    // 更新畫布尺寸
                     if (video.videoWidth) {
                         videoCanvas.width = video.videoWidth;
                         videoCanvas.height = video.videoHeight;
                     }
-                }).catch(err => {
+                }).catch(function(err) {
                     console.error(err);
-                    // 備案：靜音播放
-                    statusText.innerText = "自動播放受阻，嘗試靜音播放...";
+                    // 失敗就靜音播放
                     video.muted = true;
-                    video.play().then(() => {
-                        overlay.style.display = 'none';
-                        enterVrBtn.style.display = 'block';
-                    }).catch(e => alert("影片播放失敗，請檢查檔案: " + e.message));
+                    video.play();
+                    overlay.style.display = 'none';
+                    enterBtn.style.display = 'block';
+                    alert("注意：已啟用靜音播放模式 (請檢查手機靜音開關)");
                 });
             });
 
-            // --- 按鈕 2: 進入 VR ---
-            enterVrBtn.addEventListener('click', function() {
-                requestOrientationPermission();
+            // 2. 進入 VR
+            enterBtn.addEventListener('click', function() {
+                // 請求權限 (iOS 13+)
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(function(response) {
+                            if (response == 'granted') {
+                                enableVR();
+                            } else {
+                                alert("拒絕權限將無法轉頭，但仍可觀看");
+                                enableVR();
+                            }
+                        })
+                        .catch(function(e) { alert(e); });
+                } else {
+                    enableVR();
+                }
             });
 
-            // --- 按鈕 3: 退出 VR ---
+            // 3. 退出
             exitBtn.addEventListener('click', function() {
-                isVRMode = false;
+                isVR = false;
+                enterBtn.style.display = 'block';
                 exitBtn.style.display = 'none';
-                enterVrBtn.style.display = 'block';
-                camera.position.set(0,0,0);
+                controls = null;
                 camera.rotation.set(0,0,0);
-                controls = null; // 移除陀螺儀控制
-                onWindowResize();
+                onResize();
             });
         }
 
-        // iOS 陀螺儀權限請求
-        function requestOrientationPermission() {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(response => {
-                        if (response === 'granted') {
-                            enableVRMode();
-                        } else {
-                            alert('您拒絕了動作權限，無法轉頭觀看。');
-                            // 即使拒絕也讓他進去看看，只是不能轉頭
-                            enableVRMode(); 
-                        }
-                    })
-                    .catch(e => alert("權限請求錯誤: " + e));
-            } else {
-                // Android 直接進入
-                enableVRMode();
-            }
-        }
-
-        function enableVRMode() {
-            isVRMode = true;
-            enterVrBtn.style.display = 'none';
-            exitBtn.style.display = 'block';
+        function enableVR() {
+            isVR = true;
+            document.getElementById('enter-vr-btn').style.display = 'none';
+            document.getElementById('exit-btn').style.display = 'block';
             
             // 啟動陀螺儀
             if (!controls) {
-                controls = new DeviceOrientationControls(camera);
+                controls = new THREE.DeviceOrientationControls(camera);
             }
-            
-            // 嘗試全螢幕
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => {});
-            }
+
+            // 全螢幕
+            var docEl = document.documentElement;
+            if (docEl.requestFullscreen) docEl.requestFullscreen();
+            else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
         }
 
-        function onWindowResize() {
+        function onResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            if(effect) effect.setSize(window.innerWidth, window.innerHeight);
+            if (effect) effect.setSize(window.innerWidth, window.innerHeight);
         }
 
         function animate() {
             requestAnimationFrame(animate);
 
-            // 每一幀將影片畫到 Canvas
+            // Canvas 更新迴圈
             if (video.readyState >= video.HAVE_CURRENT_DATA) {
                 videoContext.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
                 texture.needsUpdate = true;
             }
 
-            if (isVRMode) {
-                // VR 模式：陀螺儀 + 立體渲染
+            if (isVR) {
                 if (controls) controls.update();
                 effect.render(scene, camera);
             } else {
-                // 一般模式：平面渲染
                 renderer.render(scene, camera);
             }
         }
