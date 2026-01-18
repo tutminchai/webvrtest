@@ -10,18 +10,14 @@
     
     <title>VR360 虛擬導覽</title>
     <style>
-        /* --- 1. 強制全螢幕 CSS --- */
+        /* --- 全局設定 --- */
         html, body {
             margin: 0; padding: 0;
             background-color: #000;
-            overflow: hidden; /* 禁止捲動 */
-            width: 100%;
-            height: 100%;
-            height: 100dvh; /* 針對手機瀏覽器優化的動態高度 */
-            position: fixed; /* 鎖定畫面，嘗試隱藏網址列 */
+            width: 100%; height: 100dvh;
+            overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            -webkit-user-select: none; /* 禁止選取文字 */
-            user-select: none;
+            user-select: none; -webkit-user-select: none;
         }
         
         /* 啟動介面 */
@@ -82,7 +78,6 @@
             pointer-events: auto;
             background: rgba(20, 20, 20, 0.8);
             backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.3);
             color: white;
             padding: 12px 30px;
@@ -93,7 +88,6 @@
             box-shadow: 0 5px 20px rgba(0,0,0,0.4);
         }
         
-        /* 退出按鈕 (右上角) */
         #exit-btn {
             position: fixed; top: 20px; right: 20px; z-index: 1001;
             padding: 8px 16px; font-size: 13px; border-radius: 20px;
@@ -108,6 +102,7 @@
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/controls/DeviceOrientationControls.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/effects/StereoEffect.js"></script>
 </head>
@@ -136,7 +131,9 @@
     <canvas id="video-canvas" style="display:none"></canvas>
 
     <script>
-        var camera, scene, renderer, effect, controls;
+        var camera, scene, renderer, effect;
+        // 定義兩種控制器
+        var orbitControls, deviceControls;
         var video, videoCanvas, videoContext, texture;
         var isVR = false;
 
@@ -151,12 +148,14 @@
         init();
 
         function init() {
-            // 場景設定
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
+            
+            // 攝影機位置設在圓心微偏一點點，讓 OrbitControls 運作更順暢
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
+            camera.position.set(0, 0, 0.1); 
 
-            // Canvas 代理設定 (iPhone 防黑屏)
+            // Canvas 代理設定
             video = document.getElementById('video');
             videoCanvas = document.getElementById('video-canvas');
             videoContext = videoCanvas.getContext('2d');
@@ -179,6 +178,13 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
+            // 初始化 OrbitControls (手指滑動)
+            orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+            orbitControls.enableZoom = false; // 禁止縮放，避免穿幫
+            orbitControls.enablePan = false;  // 禁止平移
+            orbitControls.rotateSpeed = -0.3; // 反轉方向，讓拖曳更直覺
+            orbitControls.enableDamping = true; // 增加阻尼感，滑動更平順
+
             effect = new THREE.StereoEffect(renderer);
             effect.eyeSeparation = 1;
             effect.setSize(window.innerWidth, window.innerHeight);
@@ -195,14 +201,13 @@
                 btnText.innerText = "載入中...";
                 startBtn.style.pointerEvents = 'none';
 
-                video.muted = false; // 開啟聲音
+                video.muted = false;
                 
-                // 嘗試全螢幕 (Android 有效)
+                // 嘗試全螢幕 (Android)
                 var docEl = document.documentElement;
                 if(docEl.requestFullscreen) docEl.requestFullscreen().catch(e=>{});
 
                 video.play().then(function() {
-                    // 成功播放
                     overlay.style.opacity = 0;
                     setTimeout(function(){ overlay.style.display = 'none'; }, 500);
                     enterVrBtn.style.display = 'inline-block';
@@ -211,10 +216,8 @@
                         videoCanvas.width = video.videoWidth;
                         videoCanvas.height = video.videoHeight;
                     }
-                    // 試圖捲動到最上方隱藏網址列 (iOS Hack)
                     window.scrollTo(0, 1);
                 }).catch(function(err) {
-                    // 失敗備案
                     video.muted = true;
                     video.play();
                     overlay.style.opacity = 0;
@@ -225,6 +228,7 @@
 
             // 2. 進入 VR
             enterVrBtn.addEventListener('click', function() {
+                // 請求陀螺儀權限
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission()
                         .then(function(response) { enableVR(); })
@@ -234,39 +238,39 @@
                 }
             });
 
-            // 3. 退出 VR (修正卡頓的強力版)
+            // 3. 退出 VR
             exitBtn.addEventListener('click', function() {
                 isVR = false;
                 
-                // UI 切換
+                // 切換按鈕
                 enterVrBtn.style.display = 'inline-block';
                 exitBtn.style.display = 'none';
                 
-                // 清除控制，重置相機
-                controls = null;
-                camera.position.set(0, 0, 0);
-                camera.rotation.set(0, 0, 0);
-                camera.fov = 70;
-                camera.updateProjectionMatrix();
+                // --- 控制器切換邏輯 ---
+                // 停用陀螺儀
+                deviceControls = null; 
+                // 啟用手指滑動
+                orbitControls.enabled = true; 
                 
-                // 【關鍵】重置渲染器狀態，清除分屏裁切
+                // 重置渲染狀態
                 renderer.setScissorTest(false);
-                renderer.clear(); // 清除緩衝區
+                renderer.clear();
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
                 
-                // 強制重繪一幀
-                renderer.render(scene, camera);
-
-                // 【多重保險】確保影片繼續播放
+                // 強制相機回到水平位置 (可選，看是否要重置視角)
+                // camera.position.set(0, 0, 0.1);
+                
+                // 強制重整尺寸
+                onResize();
+                
+                // 確保影片播放
                 function forcePlay() {
                     if (video.paused) video.play();
                 }
                 forcePlay();
-                setTimeout(forcePlay, 100); // 0.1秒後再叫一次
-                setTimeout(forcePlay, 500); // 0.5秒後再叫一次
+                setTimeout(forcePlay, 100);
 
-                // 退出全螢幕
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
                 } else if (document.webkitExitFullscreen) {
@@ -280,8 +284,13 @@
             enterVrBtn.style.display = 'none';
             exitBtn.style.display = 'block';
             
-            if (!controls) {
-                controls = new THREE.DeviceOrientationControls(camera);
+            // --- 控制器切換邏輯 ---
+            // 停用手指滑動 (避免在 VR 模式下畫面亂轉)
+            orbitControls.enabled = false;
+            
+            // 啟用陀螺儀
+            if (!deviceControls) {
+                deviceControls = new THREE.DeviceOrientationControls(camera);
             }
 
             var docEl = document.documentElement;
@@ -299,17 +308,22 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // 畫布持續更新
+            // 更新畫布
             if (video.readyState >= video.HAVE_CURRENT_DATA) {
                 videoContext.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
                 texture.needsUpdate = true;
             }
 
             if (isVR) {
-                if (controls) controls.update();
+                // VR 模式：只用陀螺儀
+                if (deviceControls) deviceControls.update();
                 effect.render(scene, camera);
             } else {
-                // 確保一般模式下沒有殘留的 Scissor Test
+                // 一般模式：使用手指滑動 (OrbitControls)
+                // 必須在這裡呼叫 update() 才能讓阻尼效果生效
+                orbitControls.update();
+                
+                // 確保全螢幕無裁切
                 renderer.setScissorTest(false);
                 renderer.render(scene, camera);
             }
