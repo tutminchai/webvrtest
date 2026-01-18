@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>VR360 最終完成版</title>
+    <title>VR360 畫布修復版</title>
     <style>
         body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
         
-        /* 啟動覆蓋層 UI */
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); display: flex;
@@ -15,34 +14,47 @@
             z-index: 999; color: white; text-align: center;
         }
         .box {
-            border: 1px solid #555; padding: 30px; border-radius: 15px; 
-            background: rgba(255,255,255,0.1); max-width: 80%;
+            border: 1px solid #555; padding: 20px; border-radius: 15px; 
+            background: rgba(255,255,255,0.1); max-width: 85%;
         }
         #start-btn {
-            padding: 15px 40px; font-size: 20px; background: #EF2D5E; 
+            padding: 15px 40px; font-size: 18px; background: #EF2D5E; 
             color: white; border: none; border-radius: 30px; cursor: pointer; margin-top: 20px;
             font-weight: bold;
         }
-        p { color: #ccc; margin: 10px 0; }
+        p { color: #ccc; margin: 10px 0; font-size: 14px; }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.min.js"></script>
+    
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+    <script>
+        // 啟動除錯模式
+        var vConsole = new VConsole();
+        console.log("vConsole 啟動: 準備捕捉錯誤");
+    </script>
 </head>
 <body>
 
     <div id="overlay">
         <div class="box">
-            <h2>VR360 體驗</h2>
-            <p>1. 點擊「開始」</p>
-            <p>2. 點擊下方 "ENTER VR"</p>
-            <p>3. 手機橫放放入眼鏡</p>
-            <button id="start-btn">開始體驗</button>
+            <h2>VR360 最終修復</h2>
+            <p>使用 Canvas 代理渲染技術</p>
+            <p>1. 點擊「開始載入」</p>
+            <p>2. 等待畫面出現</p>
+            <p>3. 點擊底部 "ENTER VR"</p>
+            <button id="start-btn">開始載入</button>
         </div>
     </div>
 
-    <video id="video" loop crossOrigin="anonymous" playsinline webkit-playsinline style="display:none" muted>
+    <video id="video" 
+           loop muted crossOrigin="anonymous" 
+           playsinline webkit-playsinline 
+           style="display:none">
         <source src="video.mp4" type="video/mp4">
     </video>
+
+    <canvas id="video-canvas" style="display:none"></canvas>
 
     <script type="importmap">
         {
@@ -57,11 +69,12 @@
         import * as THREE from 'three';
         import { VRButton } from 'three/addons/webxr/VRButton.js';
 
-        // 2. 啟動 Polyfill (讓 iPhone 聽懂 WebXR 指令)
+        // 啟動 Polyfill
         const polyfill = new WebXRPolyfill();
+        console.log("Polyfill active");
 
         let camera, scene, renderer;
-        let video, texture;
+        let video, videoCanvas, videoContext, texture;
         const startBtn = document.getElementById('start-btn');
         const overlay = document.getElementById('overlay');
 
@@ -72,26 +85,33 @@
             const container = document.createElement('div');
             document.body.appendChild(container);
 
-            // 場景
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
+            scene.background = new THREE.Color(0x000000); // 背景黑
 
-            // 攝影機
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
             
-            // 處理影片與材質
+            // --- 核心修改：Canvas 代理 ---
             video = document.getElementById('video');
-            
-            // 使用 VideoTexture
-            texture = new THREE.VideoTexture(video);
-            texture.colorSpace = THREE.SRGBColorSpace;
-            
-            // 球體 (半徑 500)
-            const geometry = new THREE.SphereGeometry(500, 60, 40);
-            // 內外翻轉 (因為我們在球裡面)
-            geometry.scale(-1, 1, 1);
+            videoCanvas = document.getElementById('video-canvas');
+            videoContext = videoCanvas.getContext('2d');
 
-            // 使用 Basic 材質 (自發光，不受光照影響，防止黑畫面)
+            // 預設畫布大小 (避免初始全黑)
+            videoCanvas.width = 1920;
+            videoCanvas.height = 960;
+            videoContext.fillStyle = '#333333';
+            videoContext.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
+
+            // 使用 CanvasTexture 而不是 VideoTexture
+            texture = new THREE.CanvasTexture(videoCanvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            
+            // 球體
+            const geometry = new THREE.SphereGeometry(500, 60, 40);
+            geometry.scale(-1, 1, 1); // 內外翻轉
+
+            // 使用 Basic 材質
             const material = new THREE.MeshBasicMaterial({ map: texture });
             const mesh = new THREE.Mesh(geometry, material);
             scene.add(mesh);
@@ -100,33 +120,46 @@
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
-            
-            // 開啟 VR
-            renderer.xr.enabled = true; 
-            renderer.xr.setReferenceSpaceType('local'); // 重要：設定 VR 空間類型
+            renderer.xr.enabled = true;
+            renderer.xr.setReferenceSpaceType('local');
             
             container.appendChild(renderer.domElement);
 
             // 加入 VR 按鈕
-            document.body.appendChild(VRButton.createButton(renderer));
+            const vrButton = VRButton.createButton(renderer);
+            document.body.appendChild(vrButton);
 
-            // RWD
             window.addEventListener('resize', onWindowResize);
 
-            // 按鈕事件
+            // --- 點擊事件 ---
             startBtn.addEventListener('click', function() {
-                // 解鎖聲音並播放
-                video.muted = false;
+                console.log("User clicked start");
+                
+                // 1. 播放影片
                 video.play().then(()=> {
-                    console.log("Video Playing");
+                    console.log("Video playing successfully");
                     overlay.style.display = 'none';
+                    
+                    // 更新畫布尺寸以符合影片真實尺寸
+                    if (video.videoWidth) {
+                        videoCanvas.width = video.videoWidth;
+                        videoCanvas.height = video.videoHeight;
+                    }
                 }).catch(err => {
-                    console.error("Play error:", err);
-                    // 如果解鎖聲音失敗，嘗試靜音播放 (保底)
-                    video.muted = true;
-                    video.play();
-                    overlay.style.display = 'none';
+                    console.error("Video play error:", err);
+                    alert("播放錯誤: " + err.message);
                 });
+            });
+            
+            // 監聽 VR 按鈕點擊，防止進入 VR 後暫停
+            vrButton.addEventListener('click', function() {
+                console.log("Entering VR...");
+                setTimeout(() => {
+                    if(video.paused) {
+                        console.log("Resuming video in VR");
+                        video.play();
+                    }
+                }, 1000);
             });
         }
 
@@ -141,6 +174,14 @@
         }
 
         function render() {
+            // --- 關鍵：手動將影片畫到 Canvas 上 ---
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                // 將影片的當前影格畫到 Canvas
+                videoContext.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
+                // 告訴 Three.js 紋理已經更新，需要重繪
+                texture.needsUpdate = true;
+            }
+
             renderer.render(scene, camera);
         }
     </script>
