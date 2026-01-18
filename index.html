@@ -2,125 +2,138 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>VR360 體驗 (穩定版)</title>
-    
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Three.js VR360 核心版</title>
     <style>
-        body { background-color: #000; margin: 0; overflow: hidden; font-family: sans-serif; }
-
-        /* 【關鍵 2】絕對不要用 display: none 隱藏影片！ 
-           iPhone 會以為不用播放。改用透明度隱藏。 */
-        #vr-video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 1px; 
-            height: 1px;
-            opacity: 0.01; /* 讓它保持微弱可見，騙過瀏覽器 */
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        /* UI 介面 */
+        body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
+        
+        /* 啟動覆蓋層 */
         #overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 9999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; text-align: center;
-        }
-        .box { 
-            background: rgba(255, 255, 255, 0.1); padding: 25px; border-radius: 15px; 
-            border: 1px solid rgba(255,255,255,0.2); max-width: 80%;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 999; color: white;
         }
         #start-btn {
-            margin-top: 25px; padding: 15px 50px; font-size: 20px; font-weight: bold;
-            background: #EF2D5E; color: white; border: none; border-radius: 50px;
+            padding: 15px 40px; font-size: 20px; background: #EF2D5E; 
+            color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;
         }
-        
-        #enter-vr-btn {
-            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-            z-index: 9998; display: none;
-            padding: 12px 25px; background: rgba(0,0,0,0.8); border: 2px solid #fff;
-            color: white; border-radius: 30px; font-weight: bold;
-        }
+        p { color: #ccc; }
     </style>
 </head>
 <body>
 
-    <video id="vr-video" 
-           src="video.mp4" 
-           preload="auto" 
-           loop="true" 
-           crossorigin="anonymous" 
-           playsinline 
-           webkit-playsinline
-           muted>
-    </video>
-
     <div id="overlay">
-        <div class="box">
-            <h3>VR 啟動模式</h3>
-            <p>請點擊下方按鈕開始載入</p>
-        </div>
-        <button id="start-btn" onclick="startApp()">載入影片</button>
+        <h2>VR360 核心播放器</h2>
+        <p>1. 點擊開始</p>
+        <p>2. 點擊下方 "ENTER VR"</p>
+        <button id="start-btn">開始體驗</button>
     </div>
 
-    <div id="enter-vr-btn" onclick="enterVR()">進入 VR 模式</div>
+    <video id="video" loop crossOrigin="anonymous" playsinline style="display:none">
+        <source src="video.mp4" type="video/mp4">
+    </video>
 
-    <a-scene vr-mode-ui="enabled: false"
-             loading-screen="dotsColor: white; backgroundColor: black">
-        
-        <a-sky src="#vr-video" rotation="0 -90 0"></a-sky>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 
-        <a-camera position="0 0 0" look-controls="enabled: true"></a-camera>
-    </a-scene>
+    <script type="module">
+        import * as THREE from 'three';
+        import { VRButton } from 'three/addons/webxr/VRButton.js';
 
-    <script>
-        var video = document.getElementById('vr-video');
-        var scene = document.querySelector('a-scene');
+        let camera, scene, renderer;
+        let video, texture;
 
-        function startApp() {
-            // 播放影片
-            video.play().then(() => {
-                console.log("Video Started");
-                document.getElementById('overlay').style.display = 'none';
-                document.getElementById('enter-vr-btn').style.display = 'block';
-            }).catch(e => {
-                alert("播放失敗，請檢查檔案格式");
-                console.error(e);
+        const startBtn = document.getElementById('start-btn');
+        const overlay = document.getElementById('overlay');
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+
+            // 1. 建立場景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000); // 預設背景黑
+
+            // 2. 建立攝影機
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
+            
+            // 3. 處理影片與材質 (最關鍵的一步)
+            video = document.getElementById('video');
+            
+            // 建立 VideoTexture
+            texture = new THREE.VideoTexture(video);
+            texture.colorSpace = THREE.SRGBColorSpace; // 確保顏色正確
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+
+            // 4. 建立球體 (把影片貼在球內壁)
+            const geometry = new THREE.SphereGeometry(500, 60, 40);
+            // 幾何體翻轉 (因為我們是在球裡面看)
+            geometry.scale(-1, 1, 1);
+
+            // 使用 Basic 材質 (不受光照影響，避免全黑)
+            const material = new THREE.MeshBasicMaterial({ map: texture });
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            // 5. 渲染器設定
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // 開啟 VR 支援
+            renderer.xr.enabled = true; 
+            // 修正顏色編碼
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            
+            container.appendChild(renderer.domElement);
+
+            // 6. 加入官方的 VR 按鈕
+            // 這會自動偵測裝置並產生 "ENTER VR"
+            document.body.appendChild(VRButton.createButton(renderer));
+
+            // RWD 調整
+            window.addEventListener('resize', onWindowResize);
+
+            // 綁定按鈕事件
+            startBtn.addEventListener('click', function() {
+                overlay.style.display = 'none';
+                
+                // 解鎖聲音並播放
+                video.muted = false;
+                video.play().then(()=> {
+                    console.log("Video Playing");
+                }).catch(err => {
+                    console.error("Play failed:", err);
+                    alert("播放失敗，請確認影片格式");
+                });
             });
         }
 
-        function enterVR() {
-            // 針對 iOS 13+ 的權限請求 (A-Frame 1.2.0 需要手動處理這段)
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(response => {
-                        if (response === 'granted') {
-                            goVR();
-                        } else {
-                            alert('請允許動作感測器權限');
-                        }
-                    })
-                    .catch(console.error);
-            } else {
-                goVR();
-            }
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function goVR() {
-            scene.enterVR();
-            
-            // 【關鍵 4】進入 VR 後，再次強制確保影片在播放
-            // 有時候 iOS 切換全螢幕會自動暫停
-            setTimeout(() => {
-                if(video.paused) {
-                    video.play();
-                }
-            }, 1000);
+        function animate() {
+            // 使用 WebXR 專用的渲染迴圈
+            renderer.setAnimationLoop(render);
+        }
+
+        function render() {
+            // 如果影片在播放，確保紋理更新
+            // Three.js 的 VideoTexture 通常會自動處理，但這裡我們不干涉
+            renderer.render(scene, camera);
         }
     </script>
 </body>
