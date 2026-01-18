@@ -2,39 +2,101 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR360 學生作品展示平台</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VR360 教學展示平台</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     
     <style>
-        /* 簡單的播放按鈕樣式，引導使用者點擊 */
-        #play-overlay {
+        body { margin: 0; overflow: hidden; font-family: 'Helvetica', sans-serif; }
+
+        /* --- 1. 教學引導覆蓋層 (Instruction Overlay) --- */
+        #overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 9999;
-            cursor: pointer;
-        }
-        #play-text {
             color: white;
-            font-size: 24px;
-            font-family: sans-serif;
-            border: 2px solid white;
-            padding: 20px;
-            border-radius: 10px;
+            text-align: center;
         }
+
+        .step-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 80%;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .step-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #4CC3D9; }
+        .step-item { font-size: 18px; margin: 15px 0; line-height: 1.5; }
+        .highlight { color: #FFC65C; font-weight: bold; }
+
+        /* 開始按鈕 */
+        #start-btn {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 20px;
+            background: #EF2D5E;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(239, 45, 94, 0.5);
+            transition: transform 0.2s;
+        }
+        #start-btn:active { transform: scale(0.95); }
+
+        /* --- 2. 客製化 VR 按鈕 (置於底部中央) --- */
+        #enter-vr-btn {
+            position: fixed;
+            /* 關鍵：設定 bottom 為 80px 或 10%，避開 iPhone Safari 底部橫條 */
+            bottom: 80px; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9998;
+            
+            display: none; /* 一開始隱藏，等點擊開始後才出現 */
+            
+            padding: 12px 24px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid white;
+            border-radius: 30px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        /* 加入一個眼鏡圖示 (使用 CSS 繪製簡單圖形，避免依賴外部圖片) */
+        #enter-vr-btn::before {
+            content: "👓"; 
+            margin-right: 8px;
+            font-size: 18px;
+        }
+
     </style>
 </head>
 <body>
 
-    <div id="play-overlay" onclick="startVideo()">
-        <div id="play-text">點擊螢幕進入 VR 體驗</div>
+    <div id="overlay">
+        <div class="step-box">
+            <div class="step-title">VR 體驗指南</div>
+            <div class="step-item">1. 點擊下方 <span class="highlight">開始體驗</span></div>
+            <div class="step-item">2. 點擊底部 <span class="highlight">VR 眼鏡按鈕</span></div>
+            <div class="step-item">3. 將手機橫放並放入 <span class="highlight">Cardboard</span></div>
+        </div>
+        <button id="start-btn" onclick="startExperience()">開始體驗</button>
     </div>
 
-    <a-scene vr-mode-ui="enabled: true">
+    <div id="enter-vr-btn" onclick="enterVRMode()">進入 VR 模式</div>
+
+    <a-scene vr-mode-ui="enabled: false" loading-screen="dotsColor: white; backgroundColor: black">
         
         <a-assets>
             <video id="vr-video" 
@@ -49,22 +111,34 @@
 
         <a-videosphere src="#vr-video" rotation="0 -90 0"></a-videosphere>
 
-        <a-camera user-height="1.6">
-            </a-camera>
+        <a-camera user-height="1.6" look-controls="enabled: true"></a-camera>
 
     </a-scene>
 
     <script>
-        // JavaScript 控制腳本
-        function startVideo() {
+        function startExperience() {
             var video = document.querySelector('#vr-video');
-            var overlay = document.querySelector('#play-overlay');
-            
-            // 播放影片
-            video.play();
-            
-            // 隱藏覆蓋層
+            var overlay = document.querySelector('#overlay');
+            var vrBtn = document.querySelector('#enter-vr-btn');
+
+            // 1. 播放影片 (需要使用者互動才能啟動聲音與影像)
+            video.play().then(() => {
+                console.log("Video playing");
+            }).catch(e => {
+                console.error("Play error:", e);
+            });
+
+            // 2. 隱藏教學層
             overlay.style.display = 'none';
+
+            // 3. 顯示底部的 VR 按鈕
+            vrBtn.style.display = 'block';
+        }
+
+        function enterVRMode() {
+            var scene = document.querySelector('a-scene');
+            // 呼叫 A-Frame 的進入 VR 模式功能
+            scene.enterVR();
         }
     </script>
 </body>
