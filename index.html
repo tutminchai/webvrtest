@@ -121,16 +121,16 @@
              loading-screen="dotsColor: white; backgroundColor: black"
              renderer="antialias: true; colorManagement: true;">
         
-        <a-assets>
-            <video id="vr-video" 
-                   src="video.mp4" 
-                   preload="auto" 
-                   loop="true" 
-                   crossorigin="anonymous" 
-                   playsinline 
-                   webkit-playsinline>
-            </video>
-        </a-assets>
+<a-assets>
+    <video id="vr-video" 
+           src="video.mp4" 
+           preload="auto" 
+           loop="true" 
+           crossorigin="anonymous" 
+           playsinline 
+           webkit-playsinline
+           muted> </video>
+</a-assets>
 
         <a-videosphere src="#vr-video" rotation="0 -90 0" shader="flat"></a-videosphere>
 
