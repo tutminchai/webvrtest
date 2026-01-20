@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#000000">
     
-    <title>VR360 最終修正版</title>
+    <title>VR360 導覽</title>
     <style>
         /* --- 1. 極簡 UI --- */
         body { margin: 0; background-color: #000; overflow: hidden; font-family: -apple-system, sans-serif; user-select: none; -webkit-user-select: none; }
@@ -54,7 +54,7 @@
             color: white; display: none; cursor: pointer;
         }
         
-        /* 調整按鈕：如果還是對不準，可以用這兩個按鈕微調 */
+        /* 微調按鈕 (預設隱藏) */
         #adjust-controls {
             position: fixed; bottom: 20px; width: 100%; text-align: center;
             z-index: 1002; display: none; pointer-events: none;
@@ -62,6 +62,16 @@
         .adj-btn {
             pointer-events: auto; background: rgba(255,255,255,0.2); border: 1px solid white;
             color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; margin: 0 10px;
+        }
+
+        /* --- 【關鍵修改】防休眠影片樣式 --- */
+        /* 不要用 display: none，改用 opacity，讓 iPhone 以為影片正在前台播放 */
+        #video {
+            position: absolute; top: 0; left: 0;
+            width: 1px; height: 1px;
+            opacity: 0.01; /* 極小透明，人眼看不到，但手機看得到 */
+            z-index: -100;
+            pointer-events: none;
         }
 
     </style>
@@ -92,7 +102,7 @@
         <button class="adj-btn" id="adj-plus">+</button>
     </div>
 
-    <video id="video" loop muted crossOrigin="anonymous" playsinline webkit-playsinline style="display:none">
+    <video id="video" loop muted crossOrigin="anonymous" playsinline webkit-playsinline>
         <source src="video.mp4" type="video/mp4">
     </video>
     <canvas id="video-canvas" style="display:none"></canvas>
@@ -102,15 +112,14 @@
         var orbitControls, deviceControls;
         var video, videoCanvas, videoContext, texture;
         var isVR = false;
-        
-        // 核心修正：兩眼攝影機
         var cameraL, cameraR;
         
-        // 【關鍵參數】IPD 修正角度 (Radians)
-        // 0.04 約等於 2.3 度。這會把畫面往中間拉，解決大手機重影問題
+        // 瞳距預設值
         var eyeOffsetAngle = 0.035; 
+        
+        // 喚醒鎖變數
+        var wakeLock = null;
 
-        // UI 元素
         var startBtn = document.getElementById('start-btn');
         var btnSpinner = document.getElementById('btn-spinner');
         var btnText = document.getElementById('btn-text');
@@ -125,15 +134,12 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
             
-            // 主攝影機
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
             camera.position.set(0, 0, 0.1);
 
-            // 建立左右眼專用攝影機 (用於修正重影)
             cameraL = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
             cameraR = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
 
-            // Canvas 代理
             video = document.getElementById('video');
             videoCanvas = document.getElementById('video-canvas');
             videoContext = videoCanvas.getContext('2d');
@@ -163,14 +169,39 @@
 
             window.addEventListener('resize', onResize, false);
             setupButtons();
-            setupAdjustment(); // 綁定微調按鈕
+            setupAdjustment();
             animate();
+            
+            // 監聽頁面可見性，如果使用者切換回來，重新申請喚醒鎖
+            document.addEventListener('visibilitychange', async () => {
+                if (wakeLock !== null && document.visibilityState === 'visible') {
+                    requestWakeLock();
+                }
+            });
+        }
+        
+        // --- 【新增】申請螢幕喚醒鎖 (Keep Screen On) ---
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('螢幕喚醒鎖已啟動');
+                }
+            } catch (err) {
+                console.log('喚醒鎖啟動失敗 (可能不支援或電量過低):', err);
+            }
         }
 
         function setupButtons() {
             startBtn.addEventListener('click', function() {
                 btnSpinner.style.display = 'block'; btnText.innerText = "載入中..."; startBtn.style.pointerEvents = 'none';
+                
+                // 1. 播放影片
                 video.muted = false;
+                
+                // 2. 【關鍵】啟動防休眠
+                requestWakeLock();
+                
                 var docEl = document.documentElement;
                 if(docEl.requestFullscreen) docEl.requestFullscreen().catch(e=>{});
 
@@ -197,7 +228,7 @@
                 isVR = false;
                 enterVrBtn.style.display = 'inline-block';
                 exitBtn.style.display = 'none';
-                adjControls.style.display = 'none'; // 隱藏微調鈕
+                adjControls.style.display = 'none';
                 
                 deviceControls = null; 
                 orbitControls.enabled = true; 
@@ -214,12 +245,10 @@
         
         function setupAdjustment() {
             document.getElementById('adj-plus').addEventListener('click', function() {
-                eyeOffsetAngle += 0.005; // 增加內縮角度
-                console.log("Offset:", eyeOffsetAngle);
+                eyeOffsetAngle += 0.005; 
             });
             document.getElementById('adj-minus').addEventListener('click', function() {
-                eyeOffsetAngle -= 0.005; // 減少內縮角度
-                console.log("Offset:", eyeOffsetAngle);
+                eyeOffsetAngle -= 0.005; 
             });
         }
 
@@ -227,10 +256,7 @@
             isVR = true;
             enterVrBtn.style.display = 'none';
             exitBtn.style.display = 'block';
-            
-            // 顯示微調按鈕 (救命用的)
-            // 如果畫面還是有重影，您可以按 + 或 - 來即時調整
-            adjControls.style.display = 'block'; 
+            adjControls.style.display = 'block'; // 如需隱藏微調鈕，請把這裡註解掉
             
             orbitControls.enabled = false;
             if (!deviceControls) deviceControls = new THREE.DeviceOrientationControls(camera);
@@ -239,6 +265,9 @@
             if (docEl.requestFullscreen) docEl.requestFullscreen();
             else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
             setTimeout(onResize, 500);
+            
+            // 進入 VR 時再次確保喚醒鎖
+            requestWakeLock();
         }
 
         function onResize() {
@@ -263,30 +292,24 @@
             if (isVR) {
                 if (deviceControls) deviceControls.update();
 
-                // 1. 同步主相機數據
                 cameraL.position.copy(camera.position);
                 cameraL.quaternion.copy(camera.quaternion);
                 
                 cameraR.position.copy(camera.position);
                 cameraR.quaternion.copy(camera.quaternion);
                 
-                // 2. 【核心修正】強制旋轉相機，模擬眼球內聚 (Convergence)
-                // 左眼往右轉，右眼往左轉，把畫面「拉」回中間
                 cameraL.rotateY( -eyeOffsetAngle ); 
                 cameraR.rotateY( eyeOffsetAngle );
 
-                // 3. 渲染
                 var w = window.innerWidth;
                 var h = window.innerHeight;
                 
                 renderer.setScissorTest(true);
                 
-                // 左眼
                 renderer.setScissor(0, 0, w/2, h);
                 renderer.setViewport(0, 0, w/2, h);
                 renderer.render(scene, cameraL);
                 
-                // 右眼
                 renderer.setScissor(w/2, 0, w/2, h);
                 renderer.setViewport(w/2, 0, w/2, h);
                 renderer.render(scene, cameraR);
