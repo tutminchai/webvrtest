@@ -132,7 +132,6 @@
 
     <script>
         var camera, scene, renderer, effect;
-        // 定義兩種控制器
         var orbitControls, deviceControls;
         var video, videoCanvas, videoContext, texture;
         var isVR = false;
@@ -151,7 +150,7 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
             
-            // 攝影機位置設在圓心微偏一點點，讓 OrbitControls 運作更順暢
+            // 攝影機位置
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 2000);
             camera.position.set(0, 0, 0.1); 
 
@@ -180,13 +179,17 @@
 
             // 初始化 OrbitControls (手指滑動)
             orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
-            orbitControls.enableZoom = false; // 禁止縮放，避免穿幫
-            orbitControls.enablePan = false;  // 禁止平移
-            orbitControls.rotateSpeed = -0.3; // 反轉方向，讓拖曳更直覺
-            orbitControls.enableDamping = true; // 增加阻尼感，滑動更平順
+            orbitControls.enableZoom = false; 
+            orbitControls.enablePan = false;  
+            orbitControls.rotateSpeed = -0.3; 
+            orbitControls.enableDamping = true;
 
             effect = new THREE.StereoEffect(renderer);
-            effect.eyeSeparation = 1;
+            
+            // 【關鍵修改】：將眼距設為 0
+            // 這能確保 2D 360 影片在雙眼顯示時完全重合，消除重影
+            effect.eyeSeparation = 0; 
+            
             effect.setSize(window.innerWidth, window.innerHeight);
 
             window.addEventListener('resize', onResize, false);
@@ -203,7 +206,6 @@
 
                 video.muted = false;
                 
-                // 嘗試全螢幕 (Android)
                 var docEl = document.documentElement;
                 if(docEl.requestFullscreen) docEl.requestFullscreen().catch(e=>{});
 
@@ -228,7 +230,6 @@
 
             // 2. 進入 VR
             enterVrBtn.addEventListener('click', function() {
-                // 請求陀螺儀權限
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission()
                         .then(function(response) { enableVR(); })
@@ -242,29 +243,19 @@
             exitBtn.addEventListener('click', function() {
                 isVR = false;
                 
-                // 切換按鈕
                 enterVrBtn.style.display = 'inline-block';
                 exitBtn.style.display = 'none';
                 
-                // --- 控制器切換邏輯 ---
-                // 停用陀螺儀
                 deviceControls = null; 
-                // 啟用手指滑動
                 orbitControls.enabled = true; 
                 
-                // 重置渲染狀態
                 renderer.setScissorTest(false);
                 renderer.clear();
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
                 
-                // 強制相機回到水平位置 (可選，看是否要重置視角)
-                // camera.position.set(0, 0, 0.1);
-                
-                // 強制重整尺寸
                 onResize();
                 
-                // 確保影片播放
                 function forcePlay() {
                     if (video.paused) video.play();
                 }
@@ -284,11 +275,8 @@
             enterVrBtn.style.display = 'none';
             exitBtn.style.display = 'block';
             
-            // --- 控制器切換邏輯 ---
-            // 停用手指滑動 (避免在 VR 模式下畫面亂轉)
             orbitControls.enabled = false;
             
-            // 啟用陀螺儀
             if (!deviceControls) {
                 deviceControls = new THREE.DeviceOrientationControls(camera);
             }
@@ -308,22 +296,16 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // 更新畫布
             if (video.readyState >= video.HAVE_CURRENT_DATA) {
                 videoContext.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
                 texture.needsUpdate = true;
             }
 
             if (isVR) {
-                // VR 模式：只用陀螺儀
                 if (deviceControls) deviceControls.update();
                 effect.render(scene, camera);
             } else {
-                // 一般模式：使用手指滑動 (OrbitControls)
-                // 必須在這裡呼叫 update() 才能讓阻尼效果生效
                 orbitControls.update();
-                
-                // 確保全螢幕無裁切
                 renderer.setScissorTest(false);
                 renderer.render(scene, camera);
             }
